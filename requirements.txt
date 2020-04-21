@@ -1,0 +1,7 @@
+tensorflow>=1.15.0
+keras
+python-sofa>=0.2.0
+numpy
+scipy
+matplotlib
+soundfile
