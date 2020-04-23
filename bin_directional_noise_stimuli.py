@@ -15,11 +15,12 @@ def main(args):
     test_path = os.path.join(args.directory, "test")
 
     train_ir_remote = [
-        # 'https://zenodo.org/record/55418/files/QU_KEMAR_anechoic_2m.sofa'
+        'https://zenodo.org/record/55418/files/QU_KEMAR_anechoic_2m.sofa'
     ]
 
     test_ir_remote = [
         'https://zenodo.org/record/160751/files/QU_KEMAR_spirit.sofa'
+        'https://zenodo.org/record/160749/files/QU_KEMAR_Auditorium3.sofa'
     ]
 
     ir_local = tools.io.sync_remote_filelist(train_ir_remote, train_path)
