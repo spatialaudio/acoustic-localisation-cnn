@@ -88,8 +88,7 @@ def generate_equivalent_cnn_2d(
     n_channels=2,
     n_dirs=360,
     n_filters=16,
-    n_dense=32
-):
+    n_dense=64):
 
     model = keras.models.Sequential()
     model.add(
@@ -98,31 +97,16 @@ def generate_equivalent_cnn_2d(
             input_shape=(block_size, n_channels)
         )
     )
-    model.add(keras.layers.BatchNormalization())
-
     # convolution layers
-    model.add(keras.layers.Conv2D(
-        filters=4,
-        kernel_size=(4, 1),
-        padding='same',
-        activation='relu'
-    ))
-
-    model.add(keras.layers.MaxPooling2D(pool_size=(2, 1)))
-    model.add(keras.layers.Conv2D(
-        filters=8,
-        kernel_size=(4, 1),
-        padding='same',
-        activation='relu'
-    ))
-    model.add(keras.layers.MaxPooling2D(pool_size=(2, 1)))
-    model.add(keras.layers.Conv2D(
-        filters=16,
-        kernel_size=(4, 1),
-        padding='same',
-        activation='relu'
-    ))
-    model.add(keras.layers.MaxPooling2D(pool_size=(4, 1)))
+    for _ in range(3):
+        model.add(keras.layers.Conv2D(
+            filters=n_filters,
+            kernel_size=(4, 1),
+            padding='same'
+        ))
+        model.add(keras.layers.MaxPooling2D(pool_size=(2, 1)))
+        model.add(keras.layers.BatchNormalization())
+        model.add(keras.layers.Activation('relu'))
 
     model.add(keras.layers.Flatten())
 
@@ -130,7 +114,7 @@ def generate_equivalent_cnn_2d(
     for _ in range(2):
         model.add(keras.layers.Dense(n_dense))
         model.add(keras.layers.BatchNormalization())
-        model.add(keras.layers.Activation('sigmoid'))
+        model.add(keras.layers.Activation('relu'))
 
 
     # output layer
