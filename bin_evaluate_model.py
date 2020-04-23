@@ -52,7 +52,6 @@ def main(args):
         **generator_params
     )
 
-
     # actual testing
     y_predict = model.predict_generator(
         generator=gen_test,
@@ -62,9 +61,20 @@ def main(args):
         use_multiprocessing=True,  # without it, segmentation fault due to HDF5
     )
 
-    plt.imshow(y_predict, aspect='auto')
-    plt.show()
-    
+    nbatches = len(gen_test)
+    batch_size = gen_test.batch_size
+    y_predict_avg = np.zeros((nbatches, gen_test.y_size))
+    for bdx in range(nbatches):
+        y_predict_avg[bdx, :] = np.mean(
+            y_predict[bdx*batch_size:(bdx+1)*batch_size, :],
+            axis=0,
+            keepdims=True
+        )
+
+    plt.imshow(y_predict_avg, aspect='auto')
+    plt.savefig('plot.png')
+    # plt.show()
+
     result = model.evaluate_generator(
         generator=gen_test,
         verbose=args.verbose,
@@ -72,25 +82,6 @@ def main(args):
         max_queue_size=128,
         use_multiprocessing=True,  # without it, segmentation fault due to HDF5
     )
-
-    print(result)
-
-
-    # 
-    # ndir = len(gen_test)
-    # y_test_mean = np.zeros((ndir, gen_test.y_size))
-    # y_predict_mean = np.zeros((ndir,  gen_test.y_size))
-
-    # for ii in tqdm.trange(ndir):
-    #     x_test, y_test = gen_test[ii]
-    #     y_predict = model.predict(x_test)
-    #     y_test_mean[ii, :] = np.mean(y_test, axis=0)
-    #     y_predict_mean[ii, :] = np.mean(y_predict, axis=0)
-
-    # fig, axs = plt.subplots(nrows=1, ncols=2)
-    # axs[0].imshow(y_predict_mean, aspect='auto')
-    # axs[1].imshow(y_test_mean, aspect='auto')
-    # plt.show()
 
 
 # %%
