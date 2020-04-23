@@ -1,18 +1,20 @@
 # %%
-import numpy as np
-import tools
-import keras
-import tensorflow as tf
-import os
-import glob  # searching for file patterns
-import multiprocessing
-import argparse
-
 from sklearn.model_selection import train_test_split
-
+import argparse  # for command line
+import multiprocessing
+import glob  # searching for file patterns
+import tensorflow as tf
+import keras
+import sys
+import tools
+import numpy as np
+import os
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'  # or any {'0', '1', '2'}
 os.environ['CUDA_VISIBLE_DEVICES'] = '-1'  # do not use GPU
-print("Num GPUs Available: ",
-      len(tf.config.experimental.list_physical_devices('GPU')))
+
+stdout = sys.stdout
+sys.stdout = open('/dev/null', 'w')
+sys.stdout = stdout
 
 # deactivate Tensorflow warnings
 tf.compat.v1.logging.set_verbosity(tf.compat.v1.logging.ERROR)
@@ -20,16 +22,23 @@ tf.compat.v1.logging.set_verbosity(tf.compat.v1.logging.ERROR)
 
 def main(args):
 
+    if args.noise_file is not None:
+        noise = np.transpose(np.load(args.noise_file))
+    else:
+        noise = None
+
     generator_params = {
         'block_size': 512,  # also defines input layer of DNN
         'block_offset': 256,
-        'block_jitter': 2,
-        'batch_size': 32,
+        'block_jitter': 1,
+        'batch_size': 64,
         'snr': [0, 5, 10, 20],
         'reestimate_snr': True,
         'scale_range': None,
         'samplewise_center': True,
-        'samplewise_std_normalisation': True
+        'samplewise_std_normalisation': True,
+        'noise': noise,
+        'y_func': tools.preprocessing.p_dist_one_hot_uniform
     }
 
     epochs = 10
@@ -42,7 +51,7 @@ def main(args):
     gen_train = tools.preprocessing.SOFAAudioGenerator(
         train_file_list,
         shuffle=True,
-        mirror=True,
+        mirror=False,
         **generator_params
     )
 
@@ -55,22 +64,7 @@ def main(args):
 
     # Load checkpoint:
     if args.checkpoint_pattern is not None:
-        # possible custom loss functions and layers
-        custom_obj_dict = {
-            'SplitLayer': tools.layers.SplitLayer,
-            'Corr1D': tools.layers.Corr1D,
-            'jensen_shannon_divergence': tools.losses.jensen_shannon_divergence
-        }
-
-        latest_file = max(
-            glob.glob(args.checkpoint_pattern),  # all files matching pattern
-            key=os.path.getctime  # time of last modification
-        )
-        # Load model:
-        model = keras.models.load_model(
-            latest_file,
-            custom_objects=custom_obj_dict
-        )
+        model = tools.io.load_newest_model(args.checkpoint_pattern)
     else:
         # Init model:
         model = tools.models.generate_equivalent_cnn_2d(
@@ -84,7 +78,10 @@ def main(args):
 
     model.compile(
         optimizer='adam',
-        loss=tools.losses.jensen_shannon_divergence
+        loss=keras.losses.kullback_leibler_divergence,
+        metrics=[keras.losses.kullback_leibler_divergence,
+                 tools.losses.jensen_shannon_divergence
+                 ]
     )
 
     # create callback for checkpoints after each epoch
@@ -132,10 +129,16 @@ if __name__ == '__main__':
         help='file prefix for saving checkpoints and final model. (default: %(default)s)'
     )
     parser.add_argument(
+        '--noise_file', '-n',
+        type=str,
+        default=None,
+        help='noise added to stimuli. (default: %(default)s)'
+    )
+    parser.add_argument(
         '--checkpoint_pattern', '-c',
         type=str,
         default=None,
-        help='Option to provide pattern of checkpoint to load (newest file selected)'
+        help='Provide pattern of checkpoint model file to load - newest file selected (default: %(default)s)'
     )
     parser.add_argument(
         '--initial_epoch', '-i',

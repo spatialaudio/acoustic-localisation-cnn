@@ -1,9 +1,11 @@
 # %%
+import os
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'  # or any {'0', '1', '2'}
+os.environ['CUDA_VISIBLE_DEVICES'] = '-1'  # do not use GPU
 import numpy as np
 import keras
 import tools
 import matplotlib.pyplot as plt
-import os
 import glob  # searching for file patterns
 import multiprocessing
 import argparse
@@ -12,29 +14,33 @@ import tqdm
 # %%
 def main(args):
 
+    if args.noise_file is not None:
+        noise = np.transpose(np.load(args.noise_file))
+    else:
+        noise = None
+
     custom_obj_dict = {
         'SplitLayer': tools.layers.SplitLayer,
         'Corr1D': tools.layers.Corr1D,
         'jensen_shannon_divergence': tools.losses.jensen_shannon_divergence
     }
 
-    model = keras.models.load_model(
-        args.model_file,
-        custom_objects=custom_obj_dict
-    )
+    model = tools.io.load_newest_model(args.model_pattern)
 
     generator_params = {
         'block_size': model.input_shape[1],  # also defines input layer of DNN
-        'block_offset': None,
+        'block_offset': model.input_shape[1] // 2,
         'block_jitter': 0,
         'batch_size': None,
-        'snr': [0, 5, 10, 20],
+        'snr': [np.Inf],
         'reestimate_snr': False,
         'shuffle': False,
-        'mirror': True,
+        'mirror': False,
         'scale_range': None,
         'samplewise_center': True,
-        'samplewise_std_normalisation': True
+        'samplewise_std_normalisation': True,
+        'noise': noise,
+        'y_func': tools.preprocessing.p_dist_one_hot_uniform
     }
 
     # testing data
@@ -101,10 +107,16 @@ if __name__ == '__main__':
     )
     # Todo: support use of multiple datasets using command line. currently only supported when editing default params
     parser.add_argument(
-        '--model_file', '-m',
+        '--model_pattern', '-m',
         type=str,
         default='tmp/models/model-final.h5',
-        help='file of model. (default: %(default)s)'
+        help='Pattern of model file to load - newest file selected (default: %(default)s)'
+    )
+    parser.add_argument(
+        '--noise_file', '-n',
+        type=str,
+        default=None,
+        help='noise added to stimuli. (default: %(default)s)'
     )
     parser.add_argument(
         '--jobs', '-j',

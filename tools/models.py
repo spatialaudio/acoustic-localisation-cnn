@@ -12,15 +12,16 @@ def generatelocalisationmodel(block_size, n_channels=2, n_dirs=360):
 
     # single channel CNN
     single = keras.models.Sequential()
-    single.add(keras.layers.Conv1D(filters=Nmic, kernel_size=4,
-                                   padding='same', activation='relu'))
+    single.add(keras.layers.Conv1D(filters=4, kernel_size=4,
+                                   padding='same', activation='relu'))                         
     single.add(keras.layers.MaxPooling1D(pool_size=2))
-    single.add(keras.layers.Conv1D(filters=Nmic, kernel_size=4,
-                                   padding='same', activation='relu'))
+    single.add(keras.layers.Conv1D(filters=8, kernel_size=4,
+                                   padding='same', activation='relu'))  
     single.add(keras.layers.MaxPooling1D(pool_size=2))
-    single.add(keras.layers.Conv1D(filters=Nmic, kernel_size=4,
-                                   padding='same', activation='relu'))
-    single.add(keras.layers.MaxPooling1D(pool_size=2))
+    single.add(keras.layers.BatchNormalization())
+    single.add(keras.layers.Conv1D(filters=16, kernel_size=4,
+                                   padding='same', activation='relu'))  
+    single.add(keras.layers.MaxPooling1D(pool_size=4))
 
     input = keras.layers.Input((block_size, n_channels))
     splitouts = _layers.SplitLayer()(input)  # layer to split channels
@@ -31,9 +32,9 @@ def generatelocalisationmodel(block_size, n_channels=2, n_dirs=360):
     # joint processing
     out = keras.layers.Concatenate()(cnnouts)  # merge channels again
     out = keras.layers.Flatten()(out)
-    out = keras.layers.Dense(8*Nmic, activation='sigmoid')(out)
+    out = keras.layers.Dense(32, activation='sigmoid')(out)
     out = keras.layers.Dropout(0.25)(out)
-    out = keras.layers.Dense(8*Nmic, activation='sigmoid')(out)
+    out = keras.layers.Dense(32, activation='sigmoid')(out)
     out = keras.layers.Dense(n_dirs, activation='softmax')(out)
 
     return keras.models.Model(input, out)
@@ -100,18 +101,28 @@ def generate_equivalent_cnn_2d(
     model.add(keras.layers.BatchNormalization())
 
     # convolution layers
-    for _ in range(3):
-        model.add(
-            keras.layers.Conv2D(
-                filters=n_filters,
-                kernel_size=(4, 1),
-                padding='same',
-            )
-        )
-        model.add(keras.layers.MaxPooling2D(pool_size=(2, 1)))
-        model.add(keras.layers.BatchNormalization())
-        model.add(keras.layers.Activation('relu'))
-        model.add(keras.layers.Dropout(0.25))
+    model.add(keras.layers.Conv2D(
+        filters=4,
+        kernel_size=(4, 1),
+        padding='same',
+        activation='relu'
+    ))
+
+    model.add(keras.layers.MaxPooling2D(pool_size=(2, 1)))
+    model.add(keras.layers.Conv2D(
+        filters=8,
+        kernel_size=(4, 1),
+        padding='same',
+        activation='relu'
+    ))
+    model.add(keras.layers.MaxPooling2D(pool_size=(2, 1)))
+    model.add(keras.layers.Conv2D(
+        filters=16,
+        kernel_size=(4, 1),
+        padding='same',
+        activation='relu'
+    ))
+    model.add(keras.layers.MaxPooling2D(pool_size=(4, 1)))
 
     model.add(keras.layers.Flatten())
 
@@ -119,8 +130,8 @@ def generate_equivalent_cnn_2d(
     for _ in range(2):
         model.add(keras.layers.Dense(n_dense))
         model.add(keras.layers.BatchNormalization())
-        model.add(keras.layers.Activation('relu'))
-        model.add(keras.layers.Dropout(0.25))
+        model.add(keras.layers.Activation('sigmoid'))
+
 
     # output layer
     model.add(keras.layers.Dense(n_dirs, activation='softmax'))

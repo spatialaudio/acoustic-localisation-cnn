@@ -8,8 +8,7 @@ import netCDF4 as _ncdf
 def spatialise_signal(ir_file: str,
                       output_file: str,
                       signal: str = None,
-                      noise_length: int = None,
-                      sum_directions: bool = False
+                      noise_length: int = None
                       ):
 
     # Open IR File
@@ -55,11 +54,11 @@ def spatialise_signal(ir_file: str,
         dst.setncatts(src.__dict__)
         # copy dimensions
         for name, dimension in src.dimensions.items():
-            dim_len = len(dimension) if not name == "N" else Nout
+            dim_len = len(dimension) if not name == "N" else Nin
             dst.createDimension(
                 name, (dim_len if not dimension.isunlimited() else None)
             )
-        # copy all files
+        # copy all variables
         for name, variable in src.variables.items():
             dst.createVariable(name, variable.datatype, variable.dimensions)
             if not "N" in variable.dimensions:
@@ -82,6 +81,7 @@ def spatialise_signal(ir_file: str,
 
             spec_h = _np.fft.rfft(sig_h, axis=1, n=Nout)
             sig_out = _np.fft.irfft(spec_in*spec_h, axis=1, n=Nout)
+            sig_out = sig_out[:,:Nin]
 
             # for channel-joint Gaussian normalisation
             rms = _np.sqrt(_np.mean(sig_out**2))
@@ -95,6 +95,42 @@ def spatialise_signal(ir_file: str,
 
     out.close()
     ir.close()
+
+
+def diffuse_noise(ir_file: str,
+                  output_file: str,
+                  noise_length: int = 1024,
+                  ):
+
+    # Open IR File
+    ir = _sofa.Database.open(ir_file)
+
+    # Some dimensions
+    Nout = noise_length + ir.Dimensions.N - 1
+
+    # convolution
+    sig_out = _np.zeros((ir.Dimensions.R, Nout))
+    for kk in range(ir.Dimensions.E):
+        for ii in range(ir.Dimensions.M):            
+            sig_noise = _np.random.normal(0, 1, (1, noise_length))
+            spec_noise = _np.fft.rfft(sig_noise, axis=1, n=Nout)
+
+            sig_h = ir.Data.IR.get_values(
+                indices={"M": ii, "E": kk},
+                dim_order=("R", "N")
+            )
+
+            spec_h = _np.fft.rfft(sig_h, axis=1, n=Nout)
+            sig_out += _np.fft.irfft(spec_noise*spec_h, axis=1, n=Nout)
+
+    # close sofa file
+    ir.close()
+
+    # for channel-joint Gaussian normalisation
+    rms = _np.sqrt(_np.mean(sig_out**2))
+
+    # save numpy array
+    _np.save(output_file, sig_out/rms, allow_pickle=False)
 
 
 def pressure_plane_wave_open_sphere(src_sig, R, Nmic, Nphi, fs, c):

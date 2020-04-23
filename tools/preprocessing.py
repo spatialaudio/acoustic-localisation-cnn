@@ -50,8 +50,11 @@ class SpatialAudioGenerator(_keras.utils.Sequence, _abc.ABC):
         self.samplewise_std_normalisation = samplewise_std_normalisation
 
         # label related attributes
-        self.y_func = self.p_dist_von_mises if y_func is None else y_func
-        _tmp, _ = self.y_func([0, 0, 0], 0)
+        if y_func is None:
+            self.y_func = p_dist_von_mises
+        else:
+            self.y_func = y_func
+        _tmp, _ = self.y_func([0.0, 0.0, 0.0], 0.01)
         self.y_size = _tmp.size  # get size of labels
 
         # some numbers
@@ -139,7 +142,7 @@ class SpatialAudioGenerator(_keras.utils.Sequence, _abc.ABC):
 
             # centering
             if self.samplewise_center:
-                X[ii, ] -= _np.mean(X[ii, :])
+                X[ii, ] -= _np.mean(X[ii, ])
 
             # std-normalisation
             if self.samplewise_std_normalisation:
@@ -160,18 +163,6 @@ class SpatialAudioGenerator(_keras.utils.Sequence, _abc.ABC):
     @_abc.abstractmethod
     def get_data_slice(self, data_index):
         pass
-
-    def p_dist_von_mises(self, pos, gamma, bins=360, kappa_max=100.0):
-        kappa = _np.minimum(2 * gamma, kappa_max)
-        phi = _np.linspace(_np.pi, -_np.pi, endpoint=False, num=bins)
-        p = _np.exp(kappa * _np.cos(phi[::-1] - pos[0]))
-
-        return p / _np.sum(p), phi[::-1]
-
-    def p_params_von_mises(self, pos, gamma, kappa_max=100.0):
-        mu = pos[0]
-        kappa = _np.minimum(2 * gamma, kappa_max)
-        return _np.array([mu, kappa]), [_np.NaN, _np.NaN]
 
 
 class NumpyAudioGenerator(SpatialAudioGenerator):
@@ -357,3 +348,28 @@ class SOFAAudioGenerator(SpatialAudioGenerator):
         )
 
         return X, y
+
+
+def p_dist_von_mises(pos, gamma, bins=360, kappa_max=100.0):
+    kappa = _np.minimum(2 * gamma, kappa_max)
+    phi = _np.linspace(_np.pi, -_np.pi, endpoint=False, num=bins)
+    p = _np.exp(kappa * _np.cos(phi[::-1] - pos[0]))
+
+    return p / _np.sum(p), phi[::-1]
+
+
+def p_dist_one_hot_uniform(pos, gamma, bins=360):
+
+    phi = _np.linspace(_np.pi, -_np.pi, endpoint=False, num=bins)
+    phi = phi[::-1]
+    delta = _np.mod(pos[0] - phi, 2*_np.pi)
+    idx = _np.argmax(_np.maximum(
+        _np.abs(delta), _np.abs(2*_np.pi - delta)))
+
+    # weight = 1.0 / (1.0 + 1.0 / gamma)
+    weight = 1.0
+
+    p = _np.ones_like(phi) * (1.0 - weight) / bins
+    p[idx] += weight
+
+    return p, phi
