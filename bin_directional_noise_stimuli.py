@@ -19,7 +19,7 @@ def main(args):
     ]
 
     test_ir_remote = [
-        'https://zenodo.org/record/160751/files/QU_KEMAR_spirit.sofa'
+        'https://zenodo.org/record/160751/files/QU_KEMAR_spirit.sofa',
         'https://zenodo.org/record/160749/files/QU_KEMAR_Auditorium3.sofa'
     ]
 
